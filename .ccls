@@ -1,0 +1,3 @@
+gcc
+-lSDL2
+-lSDL_image
