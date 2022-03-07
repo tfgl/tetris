@@ -1,11 +1,13 @@
 #include <SDL2/SDL.h>
 #include <malloc.h>
+#include <string.h>
+#include <unistd.h>
 
 #include <stdio.h>
 
 #define NB_PIECES 2
-#define W 5
-#define H 10
+#define W 10
+#define H 15
 
 typedef struct {
   int x, y, w, h;
@@ -13,8 +15,10 @@ typedef struct {
 } Piece;
 
 typedef struct {
-  char map[H+1][W+1]; // -> \0
+  char map[H][W];
   int currentPice;
+  int score;
+  int lost;
 } Gird;
 
 Gird g;
@@ -34,6 +38,7 @@ int randomPiece();
 Piece* getCurrentPiece();
 char getPieceAt(Piece* p, int x, int y);
 void lock();
+void fall();
 
 void initPiece(int pId, int w, int h) {
   Piece* p = pieces + pId;
@@ -46,29 +51,67 @@ void initPiece(int pId, int w, int h) {
   p->map = piecesMap + pId;
 }
 
-void initMap() {
+void initGird() {
   g.currentPice = randomPiece();
-  for(int i=0; i<H; i++) {
+  g.lost = 0;
+  g.score = 0;
+
+  for(int i=0; i<H; i++)
     for(int j=0; j<W; j++)
       g.map[i][j] = ' ';
-    g.map[i][W] = 0;
-  }
 }
 
 void init() {
-  initMap();
+  initGird();
 
   initPiece(0, 2, 2);
   initPiece(1, 3, 2);
 }
 
 void render() {
-  for(int i=0; i<H; i++)
-    printf("#%s#\n", g.map[i]);
+  char map[H][W];
+  Piece* p = getCurrentPiece();
+  char debug_msg[500] = "";
+
+  memcpy(map, g.map, sizeof(char)*H*W);
+  puts("=== render ===");
+  printf("score: %d\n\n", g.score);
+  puts("piece:");
+  for(int i = 0; i<p->h; i++) {
+    for(int j = 0; j<p->w; j++)
+      putchar(getPieceAt(p, j, i));
+    putchar('\n');
+  }
+
+  puts("map:");
+  for(int i=0; i<H; i++) {
+    putchar('#');
+    for(int j=0; j<W; j++) {
+      if( j >= p->x && j < p->x + p->w &&
+          i >= p->y && i < p->y + p->h &&
+          getPieceAt(p, j-p->x, i-p->y) != ' ') {
+            strcpy(debug_msg, "<- p");
+            putchar( getPieceAt(getCurrentPiece(), j-p->x, i-p->y) );
+      }
+      else {
+        putchar( g.map[i][j] );
+      }
+    }
+    putchar('#');
+    printf(" %s\n", debug_msg);
+    strcpy(debug_msg, "");
+  }
 }
 
 void update() {
+  const Piece* p = getCurrentPiece();
+
   render();
+  while( !g.lost ) {
+    fall();
+    render();
+    sleep(1);
+  }
 }
 
 int fit() {
@@ -87,21 +130,25 @@ int fit() {
 void fall() {
   Piece* p = getCurrentPiece();
 
+  p->y++;
   // TODO: take rotate into account
-  if(p->y + p->h == H || fit() ) lock();
+  if(p->y + p->h == H+1 || !fit() ) {
+    p->y--;
+    lock();
+  }
 }
 
 int randomPiece() {
-  return 0;
+  return random() % NB_PIECES;
 }
 
 void slide(int dx) {
   Piece* p = getCurrentPiece();
-  int nextX = p->x + dx;
+  p->x += dx;
 
   // TODO: take rotate into account
-  if( nextX < W && nextX >= 0 )
-    p->x = nextX;
+  if( p->x >= W || p->x < 0 || !fit() )
+    p->x -= dx;
 }
 
 Piece* getCurrentPiece() {
@@ -115,22 +162,28 @@ char getPieceAt(Piece* p, int x, int y) {
 void lock() {
   Piece* p = getCurrentPiece();
 
-  for(int i=0; i<p->h; i++)
-    for(int j=0; j<p->w; j++)
+  for(int i=0; i<p->h; i++) {
+    for(int j=0; j<p->w; j++) {
       g.map[i+p->y][j+p->x] = getPieceAt(p, j, i);
+    }
+  }
 
-  g.currentPice = random();
+  p->y = 0;
+  p->x = 0;
+  g.currentPice = randomPiece();
 }
 
 int main() {
   init();
-  slide(1);
-  puts("hi");
-  fall();
-  puts("hi");
-  lock();
-  puts("hi");
+  slide(-1);
   render();
-  puts("hi");
+  slide(1);
+  slide(1);
+  slide(1);
+  slide(1);
+  slide(1);
+  slide(1);
+  slide(1);
+  update();
   return 0;
 }
