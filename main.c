@@ -1,11 +1,14 @@
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#include <SDL.h>
+#include <SDL_image.h>
+#else
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
-#include <malloc.h>
-#include <string.h>
-#include <unistd.h>
-#include <math.h>
+#endif
 
-#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 
 #define NB_PIECES 7
 #define W 10
@@ -71,7 +74,7 @@ void initGame();
 void init();
 void update();
 int fit();
-void fall();
+int fall();
 int randomPiece();
 void slide(int);
 Piece* getCurrentPiece();
@@ -236,14 +239,15 @@ void initGame() {
   g.window = SDL_CreateWindow("Tetris", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WIN_WIDTH, WIN_HEIGTH, SDL_WINDOW_SHOWN);
   g.renderer = SDL_CreateRenderer(g.window, -1, SDL_RENDERER_ACCELERATED);
 
-  SDL_Surface* s = IMG_Load("blocks.png");
+  SDL_Surface* s = IMG_Load("res/blocks.png");
   g.textures[0] = SDL_CreateTextureFromSurface(g.renderer, s);
-  s = IMG_Load("alpha_num.png");
+  s = IMG_Load("res/alpha_num.png");
   g.textures[1] = SDL_CreateTextureFromSurface(g.renderer, s);
   SDL_FreeSurface(s);
 }
 
 void init() {
+  srand(time(NULL));
   initGame();
 
   initPiece(0, 2, 2);
@@ -284,7 +288,7 @@ void update() {
         if( e.key.keysym.sym == SDLK_LSHIFT)
           shift_pressed = 1;
 
-        if( e.key.keysym.sym == SDLK_RIGHT && shift_pressed)
+        if( e.key.keysym.sym == SDLK_UP ||  (e.key.keysym.sym == SDLK_RIGHT && shift_pressed))
           rotateRight();
 
         if( e.key.keysym.sym == SDLK_LEFT && shift_pressed)
@@ -295,6 +299,9 @@ void update() {
 
         if( e.key.keysym.sym == SDLK_DOWN )
           boost = 1;
+
+          if( e.key.keysym.sym == SDLK_SPACE )
+            while( fall() );
       }
 
       if( e.type == SDL_KEYUP ) {
@@ -333,15 +340,17 @@ int fit(Piece* p) {
   return 1;
 }
 
-void fall() {
+int fall() {
   Piece* p = getCurrentPiece();
-
   p->y++;
-  // TODO: take rotate into account
+
   if(!fit(p) ) {
     p->y--;
     lock();
+    return 0;
   }
+  
+  return 1;
 }
 
 int randomPiece() {
@@ -385,6 +394,8 @@ void lock() {
   p->x = 0;
   g.currentPiece = g.nextPiece;
   g.nextPiece = randomPiece();
+
+  if(!fit( getCurrentPiece() )) g.lost = 1;
 }
 
 void render() {
